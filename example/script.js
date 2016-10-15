@@ -1,34 +1,36 @@
-(function() {
-  var COMPAT_ENVS = [
-    ['Firefox', ">= 16.0"],
-    ['Google Chrome',
-      ">= 24.0 (you may need to get Google Chrome Canary), NO Blob storage support"
-    ]
-  ];
-  var compat = $('#compat');
-  compat.empty();
-  compat.append('<ul id="compat-list"></ul>');
-  COMPAT_ENVS.forEach(function(val, idx, array) {
-    $('#compat-list').append('<li>' + val[0] + ': ' + val[1] + '</li>');
-  });
+var index = {
+  db: null,
+  current_view_pub_key: '',
 
-  const DB_NAME = 'mdn-demo-indexeddb-epublications';
-  const DB_VERSION = 1; // Use a long long for this value (don't use a float)
-  const DB_STORE_NAME = 'publications';
+  DB_NAME: 'mdn-demo-indexed270-epublications',
+  DB_VERSION: 1,
+  DB_STORE_NAME: 'publications',
 
-  var db;
+  init: function() {
+    var COMPAT_ENVS = [
+      ['Firefox', ">= 16.0"],
+      ['Google Chrome',
+        ">= 24.0 (you may need to get Google Chrome Canary), NO Blob storage support"
+      ]
+    ];
+    var compat = $('#compat');
+    compat.empty();
+    compat.append('<ul id="compat-list"></ul>');
+    COMPAT_ENVS.forEach(function(val, idx, array) {
+      $('#compat-list').append('<li>' + val[0] + ': ' + val[1] + '</li>');
+    });
 
-  // Used to keep track of which view is displayed to avoid uselessly reloading it
-  var current_view_pub_key;
-
-  function openDb() {
+    index.openDb();
+    index.addEventListeners();
+  },
+  openDb: function() {
     console.log("openDb ...");
-    var req = indexedDB.open(DB_NAME, DB_VERSION);
+    var req = indexedDB.open(index.DB_NAME, index.DB_VERSION);
     req.onsuccess = function(evt) {
       // Better use "this" than "req" to get the result to avoid problems with
       // garbage collection.
       // db = req.result;
-      db = this.result;
+      index.db = this.result;
       console.log("openDb DONE");
     };
     req.onerror = function(evt) {
@@ -38,7 +40,7 @@
     req.onupgradeneeded = function(evt) {
       console.log("openDb.onupgradeneeded");
       var store = evt.currentTarget.result.createObjectStore(
-        DB_STORE_NAME, {
+        index.DB_STORE_NAME, {
           keyPath: 'id',
           autoIncrement: true
         });
@@ -53,19 +55,20 @@
         unique: false
       });
     };
-  }
+  },
+
 
   /**
    * @param {string} store_name
    * @param {string} mode either "readonly" or "readwrite"
    */
-  function getObjectStore(store_name, mode) {
-    var tx = db.transaction(store_name, mode);
+  getObjectStore: function(store_name, mode) {
+    var tx = index.db.transaction(store_name, mode);
     return tx.objectStore(store_name);
-  }
+  },
 
-  function clearObjectStore(store_name) {
-    var store = getObjectStore(DB_STORE_NAME, 'readwrite');
+  clearObjectStore: function(store_name) {
+    var store = getObjectStore(index.DB_STORE_NAME, 'readwrite');
     var req = store.clear();
     req.onsuccess = function(evt) {
       displayActionSuccess("Store cleared");
@@ -75,25 +78,25 @@
       console.error("clearObjectStore:", evt.target.errorCode);
       displayActionFailure(this.error);
     };
-  }
+  },
 
-  function getBlob(key, store, success_callback) {
+  getBlob: function(key, store, success_callback) {
     var req = store.get(key);
     req.onsuccess = function(evt) {
       var value = evt.target.result;
       if (value)
         success_callback(value.blob);
     };
-  }
+  },
 
   /**
    * @param {IDBObjectStore=} store
    */
-  function displayPubList(store) {
+  displayPubList: function(store) {
     console.log("displayPubList");
 
     if (typeof store == 'undefined')
-      store = getObjectStore(DB_STORE_NAME, 'readonly');
+      store = getObjectStore(index.DB_STORE_NAME, 'readonly');
 
     var pub_msg = $('#pub-msg');
     pub_msg.empty();
@@ -128,11 +131,7 @@
         req = store.get(cursor.key);
         req.onsuccess = function(evt) {
           var value = evt.target.result;
-          var list_item = $('<li>' +
-            '[' + cursor.key + '] ' +
-            '(biblioid: ' + value.biblioid + ') ' +
-            value.title +
-            '</li>');
+          var list_item = $('<li>' + '[' + cursor.key + '] ' + '(biblioid: ' + value.biblioid + ') ' + value.title + '</li>');
           if (value.year != null)
             list_item.append(' - ' + value.year);
 
@@ -162,17 +161,16 @@
         console.log("No more entries");
       }
     };
-  }
+  },
 
-  function newViewerFrame() {
+  newViewerFrame: function() {
     var viewer = $('#pub-viewer');
     viewer.empty();
     var iframe = $('<iframe />');
     viewer.append(iframe);
     return iframe;
-  }
-
-  function setInViewer(key) {
+  },
+  setInViewer: function(key) {
     console.log("setInViewer:", arguments);
     key = Number(key);
     if (key == current_view_pub_key)
@@ -180,7 +178,7 @@
 
     current_view_pub_key = key;
 
-    var store = getObjectStore(DB_STORE_NAME, 'readonly');
+    var store = getObjectStore(index.DB_STORE_NAME, 'readonly');
     getBlob(key, store, function(blob) {
       console.log("setInViewer blob:", blob);
       var iframe = newViewerFrame();
@@ -220,7 +218,7 @@
       }
 
     });
-  }
+  },
 
   /**
    * @param {string} biblioid
@@ -231,7 +229,7 @@
    *   "Same origin policy", thus for this method to work, the URL must come from
    *   the same origin as the web site/app this code is deployed on.
    */
-  function addPublicationFromUrl(biblioid, title, year, url) {
+  addPublicationFromUrl: function(biblioid, title, year, url) {
     console.log("addPublicationFromUrl:", arguments);
 
     var xhr = new XMLHttpRequest();
@@ -270,7 +268,7 @@
     //     displayActionFailure("Error during blob retrieval");
     //   }
     // });
-  }
+  },
 
   /**
    * @param {string} biblioid
@@ -278,7 +276,7 @@
    * @param {number} year
    * @param {Blob=} blob
    */
-  function addPublication(biblioid, title, year, blob) {
+  addPublication: function(biblioid, title, year, blob) {
     console.log("addPublication arguments:", arguments);
     var obj = {
       biblioid: biblioid,
@@ -288,7 +286,7 @@
     if (typeof blob != 'undefined')
       obj.blob = blob;
 
-    var store = getObjectStore(DB_STORE_NAME, 'readwrite');
+    var store = getObjectStore(index.DB_STORE_NAME, 'readwrite');
     var req;
     try {
       req = store.add(obj);
@@ -307,14 +305,14 @@
       console.error("addPublication error", this.error);
       displayActionFailure(this.error);
     };
-  }
+  },
 
   /**
    * @param {string} biblioid
    */
-  function deletePublicationFromBib(biblioid) {
+  deletePublicationFromBib: function(biblioid) {
     console.log("deletePublication:", arguments);
-    var store = getObjectStore(DB_STORE_NAME, 'readwrite');
+    var store = getObjectStore(index.DB_STORE_NAME, 'readwrite');
     var req = store.index('biblioid');
     req.get(biblioid).onsuccess = function(evt) {
       if (typeof evt.target.result == 'undefined') {
@@ -326,17 +324,17 @@
     req.onerror = function(evt) {
       console.error("deletePublicationFromBib:", evt.target.errorCode);
     };
-  }
+  },
 
   /**
    * @param {number} key
    * @param {IDBObjectStore=} store
    */
-  function deletePublication(key, store) {
+  deletePublication: function(key, store) {
     console.log("deletePublication:", arguments);
 
     if (typeof store == 'undefined')
-      store = getObjectStore(DB_STORE_NAME, 'readwrite');
+      store = getObjectStore(index.DB_STORE_NAME, 'readwrite');
 
     // As per spec http://www.w3.org/TR/IndexedDB/#object-store-deletion-operation
     // the result of the Object Store Deletion Operation algorithm is
@@ -369,25 +367,25 @@
     req.onerror = function(evt) {
       console.error("deletePublication:", evt.target.errorCode);
     };
-  }
+  },
 
-  function displayActionSuccess(msg) {
+  displayActionSuccess: function(msg) {
     msg = typeof msg != 'undefined' ? "Success: " + msg : "Success";
     $('#msg').html('<span class="action-success">' + msg + '</span>');
-  }
+  },
 
-  function displayActionFailure(msg) {
+  displayActionFailure: function(msg) {
     msg = typeof msg != 'undefined' ? "Failure: " + msg : "Failure";
     $('#msg').html('<span class="action-failure">' + msg + '</span>');
-  }
+  },
 
-  function resetActionStatus() {
+  resetActionStatus: function() {
     console.log("resetActionStatus ...");
     $('#msg').empty();
     console.log("resetActionStatus DONE");
-  }
+  },
 
-  function addEventListeners() {
+  addEventListeners: function() {
     console.log("addEventListeners");
 
     $('#register-form-reset').click(function(evt) {
@@ -461,7 +459,6 @@
 
   }
 
-  openDb();
-  addEventListeners();
+};
 
-})(); // Immediately-Invoked Function Expression (IIFE)
+index.init();
