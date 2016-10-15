@@ -2,24 +2,11 @@ var index = {
   db: null,
   current_view_pub_key: '',
 
-  DB_NAME: 'mdn-demo-indexed270-epublications',
+  DB_NAME: 'mdn-demo-indexeddb-epublications',
   DB_VERSION: 1,
   DB_STORE_NAME: 'publications',
 
   init: function() {
-    var COMPAT_ENVS = [
-      ['Firefox', ">= 16.0"],
-      ['Google Chrome',
-        ">= 24.0 (you may need to get Google Chrome Canary), NO Blob storage support"
-      ]
-    ];
-    var compat = $('#compat');
-    compat.empty();
-    compat.append('<ul id="compat-list"></ul>');
-    COMPAT_ENVS.forEach(function(val, idx, array) {
-      $('#compat-list').append('<li>' + val[0] + ': ' + val[1] + '</li>');
-    });
-
     index.openDb();
     index.addEventListeners();
   },
@@ -68,11 +55,11 @@ var index = {
   },
 
   clearObjectStore: function(store_name) {
-    var store = getObjectStore(index.DB_STORE_NAME, 'readwrite');
+    var store = index.getObjectStore(index.DB_STORE_NAME, 'readwrite');
     var req = store.clear();
     req.onsuccess = function(evt) {
-      displayActionSuccess("Store cleared");
-      displayPubList(store);
+      index.displayActionSuccess("Store cleared");
+      index.displayPubList(store);
     };
     req.onerror = function(evt) {
       console.error("clearObjectStore:", evt.target.errorCode);
@@ -96,14 +83,14 @@ var index = {
     console.log("displayPubList");
 
     if (typeof store == 'undefined')
-      store = getObjectStore(index.DB_STORE_NAME, 'readonly');
+      store = index.getObjectStore(index.DB_STORE_NAME, 'readonly');
 
     var pub_msg = $('#pub-msg');
     pub_msg.empty();
     var pub_list = $('#pub-list');
     pub_list.empty();
     // Resetting the iframe so that it doesn't display previous content
-    newViewerFrame();
+    index.newViewerFrame();
 
     var req;
     req = store.count();
@@ -173,15 +160,15 @@ var index = {
   setInViewer: function(key) {
     console.log("setInViewer:", arguments);
     key = Number(key);
-    if (key == current_view_pub_key)
+    if (key == index.current_view_pub_key)
       return;
 
-    current_view_pub_key = key;
+    index.current_view_pub_key = key;
 
-    var store = getObjectStore(index.DB_STORE_NAME, 'readonly');
+    var store = index.getObjectStore(index.DB_STORE_NAME, 'readonly');
     getBlob(key, store, function(blob) {
       console.log("setInViewer blob:", blob);
-      var iframe = newViewerFrame();
+      var iframe = index.newViewerFrame();
 
       // It is not possible to set a direct link to the
       // blob to provide a mean to directly download it.
@@ -242,7 +229,7 @@ var index = {
         console.log("Blob retrieved");
         var blob = xhr.response;
         console.log("Blob:", blob);
-        addPublication(biblioid, title, year, blob);
+        index.addPublication(biblioid, title, year, blob);
       } else {
         console.error("addPublicationFromUrl error:",
           xhr.responseText, xhr.status);
@@ -286,24 +273,24 @@ var index = {
     if (typeof blob != 'undefined')
       obj.blob = blob;
 
-    var store = getObjectStore(index.DB_STORE_NAME, 'readwrite');
+    var store = index.getObjectStore(index.DB_STORE_NAME, 'readwrite');
     var req;
     try {
       req = store.add(obj);
     } catch (e) {
       if (e.name == 'DataCloneError')
-        displayActionFailure("This engine doesn't know how to clone a Blob, " +
+        index.displayActionFailure("This engine doesn't know how to clone a Blob, " +
           "use Firefox");
       throw e;
     }
     req.onsuccess = function(evt) {
       console.log("Insertion in DB successful");
-      displayActionSuccess();
-      displayPubList(store);
+      index.displayActionSuccess();
+      index.displayPubList(store);
     };
     req.onerror = function() {
       console.error("addPublication error", this.error);
-      displayActionFailure(this.error);
+      index.displayActionFailure(this.error);
     };
   },
 
@@ -312,11 +299,11 @@ var index = {
    */
   deletePublicationFromBib: function(biblioid) {
     console.log("deletePublication:", arguments);
-    var store = getObjectStore(index.DB_STORE_NAME, 'readwrite');
+    var store = index.getObjectStore(index.DB_STORE_NAME, 'readwrite');
     var req = store.index('biblioid');
     req.get(biblioid).onsuccess = function(evt) {
       if (typeof evt.target.result == 'undefined') {
-        displayActionFailure("No matching record found");
+        index.displayActionFailure("No matching record found");
         return;
       }
       deletePublication(evt.target.result.id, store);
@@ -334,7 +321,7 @@ var index = {
     console.log("deletePublication:", arguments);
 
     if (typeof store == 'undefined')
-      store = getObjectStore(index.DB_STORE_NAME, 'readwrite');
+      store = index.getObjectStore(index.DB_STORE_NAME, 'readwrite');
 
     // As per spec http://www.w3.org/TR/IndexedDB/#object-store-deletion-operation
     // the result of the Object Store Deletion Operation algorithm is
@@ -345,7 +332,7 @@ var index = {
       var record = evt.target.result;
       console.log("record:", record);
       if (typeof record == 'undefined') {
-        displayActionFailure("No matching record found");
+        index.displayActionFailure("No matching record found");
         return;
       }
       // Warning: The exact same key used for creation needs to be passed for
@@ -357,8 +344,8 @@ var index = {
         console.log("evt.target:", evt.target);
         console.log("evt.target.result:", evt.target.result);
         console.log("delete successful");
-        displayActionSuccess("Deletion successful");
-        displayPubList(store);
+        index.displayActionSuccess("Deletion successful");
+        index.displayPubList(store);
       };
       req.onerror = function(evt) {
         console.error("deletePublication:", evt.target.errorCode);
@@ -389,7 +376,7 @@ var index = {
     console.log("addEventListeners");
 
     $('#register-form-reset').click(function(evt) {
-      resetActionStatus();
+      index.resetActionStatus();
     });
 
     $('#add-button').click(function(evt) {
@@ -397,14 +384,14 @@ var index = {
       var title = $('#pub-title').val();
       var biblioid = $('#pub-biblioid').val();
       if (!title || !biblioid) {
-        displayActionFailure("Required field(s) missing");
+        index.displayActionFailure("Required field(s) missing");
         return;
       }
       var year = $('#pub-year').val();
       if (year != '') {
         // Better use Number.isInteger if the engine has EcmaScript 6
         if (isNaN(year)) {
-          displayActionFailure("Invalid year");
+          index.displayActionFailure("Invalid year");
           return;
         }
         year = Number(year);
@@ -421,11 +408,11 @@ var index = {
       //file_input.val(null);
       var file_url = $('#pub-file-url').val();
       if (selected_file) {
-        addPublication(biblioid, title, year, selected_file);
+        index.addPublication(biblioid, title, year, selected_file);
       } else if (file_url) {
-        addPublicationFromUrl(biblioid, title, year, file_url);
+        index.addPublicationFromUrl(biblioid, title, year, file_url);
       } else {
-        addPublication(biblioid, title, year);
+        index.addPublication(biblioid, title, year);
       }
 
     });
@@ -436,25 +423,25 @@ var index = {
       var key = $('#key-to-delete').val();
 
       if (biblioid != '') {
-        deletePublicationFromBib(biblioid);
+        index.deletePublicationFromBib(biblioid);
       } else if (key != '') {
         // Better use Number.isInteger if the engine has EcmaScript 6
         if (key == '' || isNaN(key)) {
-          displayActionFailure("Invalid key");
+          index.displayActionFailure("Invalid key");
           return;
         }
         key = Number(key);
-        deletePublication(key);
+        index.deletePublication(key);
       }
     });
 
     $('#clear-store-button').click(function(evt) {
-      clearObjectStore();
+      index.clearObjectStore();
     });
 
     var search_button = $('#search-list-button');
     search_button.click(function(evt) {
-      displayPubList();
+      index.displayPubList();
     });
 
   }
